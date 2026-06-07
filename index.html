@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>TarajaFin – Loan Manager</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Helvetica,Arial,sans-serif;background:#f0f4f8;min-height:100vh}
+button{cursor:pointer;font-family:inherit}
+input,select{font-family:inherit}
+.row-hover:hover{background:#dbeafe !important}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.slide-up{animation:slideUp .22s ease-out}
+@keyframes fadeIn{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:scale(1)}}
+.fade-in{animation:fadeIn .18s ease-out}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const {useState, useEffect} = React;
+
+/* ── YOUR PAYSTACK PUBLIC KEY ── */
+const PAYSTACK_KEY = "pk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
+
+/* ── STORAGE ── */
+const STORE = "taraja_v4";
+const DEMO = [
+  {id:"LN001",customerName:"Kofi Mensah",  email:"kofi@example.com",  phone:"0244000001",loanName:"Tap Loan",   amount:91.42, dueDate:"2026-06-03",status:"overdue",currency:"GHC"},
+  {id:"LN002",customerName:"Ama Owusu",    email:"ama@example.com",   phone:"0244000002",loanName:"Quick Cash",amount:250.00,dueDate:"2026-06-25",status:"pending",currency:"GHC"},
+  {id:"LN003",customerName:"Kwame Asante", email:"kwame@example.com", phone:"0244000003",loanName:"Flex Loan",  amount:500.00,dueDate:"2026-07-15",status:"paid",   currency:"GHC"},
+];
+function load(){try{const d=localStorage.getItem(STORE);return d?JSON.parse(d):DEMO;}catch{return DEMO;}}
+function save(d){try{localStorage.setItem(STORE,JSON.stringify(d));}catch{}}
+
+/* ── HELPERS ── */
+function daysLate(ds){return Math.floor((new Date()-new Date(ds))/86400000);}
+function fmtDate(ds){
+  if(!ds)return"—";
+  const d=new Date(ds);
+  return String(d.getDate()).padStart(2,"0")+"/"+String(d.getMonth()+1).padStart(2,"0")+"/"+d.getFullYear();
+}
+function initial(name){return name?name.charAt(0).toUpperCase():"?";}
+function makeId(arr){return"LN"+String(arr.length+1).padStart(3,"0");}
+
+/* ══════════════════════════════════════════
+   PAYMENT PAGE — exact clone of screenshot
+══════════════════════════════════════════ */
+function PaymentPage({loan}){
+  const [step,setStep]   = useState("main");
+  const [paying,setPaying] = useState(false);
+  const days    = daysLate(loan.dueDate);
+  const overdue = days>0 && loan.status!=="paid";
+
+  function pay(){
+    setPaying(true);
+    if(!window.PaystackPop){
+      const s=document.createElement("script");
+      s.src="https://js.paystack.co/v1/inline.js";
+      s.onload=openPaystack;
+      s.onerror=()=>{setPaying(false);alert("Could not connect to Paystack. Check internet.");};
+      document.head.appendChild(s);
+    } else { openPaystack(); }
+  }
+
+  function openPaystack(){
+    window.PaystackPop.setup({
+      key:     PAYSTACK_KEY,
+      email:   loan.email,
+      amount:  Math.round(loan.amount*100),
+      currency:"GHS",
+      ref:     "TARAJA-"+loan.id+"-"+Date.now(),
+      metadata:{loan_id:loan.id,customer:loan.customerName},
+      callback:()=>{setStep("success");setPaying(false);},
+      onClose: ()=>setPaying(false),
+    }).openIframe();
+  }
+
+  /* SUCCESS */
+  if(step==="success") return (
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100%",gap:14,padding:28,background:"#f0fdf4",textAlign:"center"}}>
+      <div style={{width:78,height:78,borderRadius:"50%",background:"#10b981",display:"flex",alignItems:"center",justifyContent:"center",fontSize:36,color:"#fff",boxShadow:"0 6px 24px rgba(16,185,129,.4)"}}>✓</div>
+      <p style={{fontSize:22,fontWeight:800,color:"#065f46"}}>Payment Successful!</p>
+      <p style={{color:"#374151",fontSize:14}}>Thank you, {loan.customerName}</p>
+      <p style={{fontSize:36,fontWeight:800,color:"#10b981"}}>{loan.currency} {loan.amount.toFixed(2)}</p>
+      <p style={{color:"#9ca3af",fontSize:12}}>Receipt sent to {loan.email}</p>
+    </div>
+  );
+
+  /* MAIN */
+  return (
+    <div style={{display:"flex",flexDirection:"column",height:"100%",overflowY:"hidden",background:"#fff"}}>
+
+      {/* Status bar */}
+      <div style={{background:"#000",color:"#fff",display:"flex",justifyContent:"space-between",padding:"8px 18px",fontSize:13,fontWeight:700,flexShrink:0}}>
+        <span>10:08 👤</span><span>●●▪ LTE 🔋</span>
+      </div>
+
+      {/* Blue gradient header */}
+      <div style={{background:"linear-gradient(180deg,#52b5f7 0%,#2196f3 52%,#dceefb 100%)",padding:"26px 20px 22px",textAlign:"center",color:"#fff",flexShrink:0}}>
+        <p style={{fontSize:20,fontWeight:700,margin:"0 0 8px"}}>{loan.loanName}</p>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,marginBottom:4}}>
+          <span style={{fontSize:54,fontWeight:700,letterSpacing:"-2px",lineHeight:1}}>{loan.amount.toFixed(2)}</span>
+          <span style={{fontSize:20,opacity:.7,marginTop:12}}>✏</span>
+        </div>
+        <p style={{fontSize:13,opacity:.85,margin:"4px 0 14px"}}>Repayment Amount({loan.currency})</p>
+        {overdue && (
+          <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:14}}>
+            <span style={{color:"rgba(255,255,255,.9)",fontSize:14}}>Overdue:</span>
+            <span style={{background:"#e53e3e",color:"#fff",borderRadius:6,padding:"4px 16px",fontWeight:700,fontSize:14,boxShadow:"0 2px 8px rgba(229,62,62,.5)"}}>
+              {days} {days===1?"day":"days"}
+            </span>
+          </div>
+        )}
+        <button style={{background:"linear-gradient(90deg,#f6a623,#f0901a)",color:"#fff",border:"none",borderRadius:30,padding:"13px 0",fontSize:16,fontWeight:800,width:"90%",display:"block",margin:"0 auto",boxShadow:"0 4px 16px rgba(240,144,26,.5)"}}>
+          Extend your loan
+        </button>
+      </div>
+
+      {/* White cards — scrollable */}
+      <div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column"}}>
+
+        {/* Loan details */}
+        <div style={{margin:"12px 12px 0",border:"1px solid #ebebeb",borderRadius:12,padding:"14px 16px",boxShadow:"0 1px 4px rgba(0,0,0,.05)"}}>
+          <p style={{fontWeight:700,fontSize:15,margin:"0 0 8px",color:"#111"}}>Loan details</p>
+          <div style={{height:1,background:"#f0f0f0",marginBottom:10}}/>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <span style={{color:"#aaa",fontSize:13}}>Due Date</span>
+            <span style={{fontSize:13,fontWeight:500,color:"#111"}}>
+              {fmtDate(loan.dueDate)}
+              {overdue && <span style={{color:"#e53e3e",fontWeight:700}}> (Overdue {days} {days===1?"day":"days"})</span>}
+            </span>
+          </div>
+        </div>
+
+        {/* Coupon */}
+        <div style={{margin:"10px 12px 0",border:"1px solid #ebebeb",borderRadius:12,padding:"14px 16px",boxShadow:"0 1px 4px rgba(0,0,0,.05)"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <span style={{fontWeight:700,fontSize:15,color:"#111"}}>Coupon</span>
+            <span style={{color:"#aaa",fontSize:14}}>No coupon</span>
+          </div>
+        </div>
+
+        {/* Repay Online */}
+        <div style={{margin:"10px 12px 0",border:"1px solid #ebebeb",borderRadius:12,padding:"14px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",boxShadow:"0 1px 4px rgba(0,0,0,.05)"}}>
+          <div style={{display:"flex",alignItems:"center",gap:12}}>
+            <div style={{width:44,height:34,background:"#e8f0fe",borderRadius:6,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>💻</div>
+            <div>
+              <p style={{fontWeight:700,fontSize:15,margin:0,color:"#111"}}>Repay Online</p>
+              <p style={{color:"#e53e3e",fontSize:12,margin:"2px 0 0",fontWeight:500}}>You must be paid in full</p>
+            </div>
+          </div>
+          <button onClick={pay} disabled={paying}
+            style={{background:paying?"#93c5fd":"#2196f3",color:"#fff",border:"none",borderRadius:8,padding:"11px 22px",fontWeight:700,fontSize:15,boxShadow:"0 3px 10px rgba(33,150,243,.4)"}}>
+            {paying?"Wait…":"Repay"}
+          </button>
+        </div>
+
+        {/* Tips */}
+        <p style={{fontSize:11.5,color:"#555",lineHeight:1.7,margin:"12px 16px 4px"}}>
+          <b>Tips:</b> 1.In order to restore your credit, it is recommended to repay as soon as possible. You will get more amount for next loan. 2.If you have any questions, please contact: <span style={{color:"#4a90d9"}}>taploangh@tarajafinancial.com</span>
+        </p>
+
+        <div style={{flex:1}}/>
+        <p style={{textAlign:"center",fontSize:11,color:"#bbb",padding:"10px 0 6px"}}>Information security guarantee</p>
+      </div>
+
+      {/* Browser bar — same as screenshot */}
+      <div style={{background:"#f2f2f7",borderTop:"1px solid #d1d1d6",padding:"8px 12px",display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+        <div style={{width:22,height:18,background:"#ddd",borderRadius:3,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#666"}}>⊟</div>
+        <div style={{flex:1,background:"#fff",borderRadius:20,padding:"5px 12px",fontSize:11,color:"#444",border:"1px solid #ddd",textAlign:"center",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>
+          api.tarajafinancial.com/pay/{loan.id}
+        </div>
+        <span style={{color:"#555"}}>✕</span>
+      </div>
+
+      {/* Phone nav bar */}
+      <div style={{background:"#f2f2f7",padding:"8px 28px 10px",display:"flex",justifyContent:"space-between",color:"#2196f3",fontSize:20,borderTop:"1px solid #e0e0e0",flexShrink:0}}>
+        <span>‹</span><span>›</span><span>⬆</span><span>📖</span><span>⧉</span>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════
+   PREVIEW MODAL — phone frame around payment page
+══════════════════════════════════════════ */
+function PreviewModal({loan, onClose}){
+  return (
+    <div style={{position:"fixed",inset:0,background:"#0d1b2a",zIndex:5000,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16,padding:20}}>
+      <div style={{display:"flex",alignItems:"center",gap:14}}>
+        <button onClick={onClose}
+          style={{background:"rgba(255,255,255,.15)",color:"#fff",border:"none",borderRadius:8,padding:"9px 18px",fontSize:13,fontWeight:600}}>
+          ← Back to Dashboard
+        </button>
+        <p style={{color:"rgba(255,255,255,.55)",fontSize:13,margin:0}}>This is exactly what {loan.customerName} sees when they open the link</p>
+      </div>
+
+      {/* Phone shell */}
+      <div style={{width:370,height:760,borderRadius:44,border:"8px solid #111",overflow:"hidden",boxShadow:"0 40px 100px rgba(0,0,0,.9)",flexShrink:0}}>
+        <PaymentPage loan={loan}/>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════
+   CUSTOMER PANEL — slides up when you tap a customer
+══════════════════════════════════════════ */
+function CustomerPanel({loan, onPreview, onEdit, onDelete, onClose}){
+  const [copied,    setCopied]    = useState(false);
+  const [msgCopied, setMsgCopied] = useState(false);
+  const days    = daysLate(loan.dueDate);
+  const overdue = days>0 && loan.status!=="paid";
+  const link    = window.location.href.split("?")[0]+"?pay="+loan.id;
+  const waMsg   = "Hello "+loan.customerName+", your *"+loan.loanName+"* repayment of *GHC "+loan.amount.toFixed(2)+"* is due on *"+fmtDate(loan.dueDate)+"*.\n\nPlease tap the link below to pay now:\n"+link;
+
+  function copyLink(){
+    navigator.clipboard.writeText(link).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),3000);}).catch(()=>{});
+  }
+  function copyMsg(){
+    navigator.clipboard.writeText(waMsg).then(()=>{setMsgCopied(true);setTimeout(()=>setMsgCopied(false),3000);}).catch(()=>{});
+  }
+
+  const sc={pending:{c:"#92400e",bg:"#fef3c7"},overdue:{c:"#991b1b",bg:"#fee2e2"},paid:{c:"#065f46",bg:"#d1fae5"}};
+  const s=sc[loan.status]||sc.pending;
+
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:3000,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={onClose}>
+      <div className="slide-up" onClick={e=>e.stopPropagation()}
+        style={{background:"#fff",borderRadius:"22px 22px 0 0",width:"100%",maxWidth:640,maxHeight:"92vh",overflowY:"auto",padding:24,boxShadow:"0 -8px 40px rgba(0,0,0,.2)"}}>
+
+        {/* Handle */}
+        <div style={{width:40,height:4,background:"#e2e8f0",borderRadius:2,margin:"0 auto 16px"}}/>
+
+        {/* Name + close */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <div style={{display:"flex",alignItems:"center",gap:12}}>
+            <div style={{width:46,height:46,borderRadius:"50%",background:"linear-gradient(135deg,#2196f3,#1565c0)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:800,fontSize:20,flexShrink:0}}>
+              {initial(loan.customerName)}
+            </div>
+            <div>
+              <h2 style={{fontSize:18,fontWeight:800,color:"#0d1b2a"}}>{loan.customerName}</h2>
+              <p style={{fontSize:13,color:"#64748b",marginTop:2}}>{loan.phone} · {loan.email}</p>
+            </div>
+          </div>
+          <button onClick={onClose} style={{background:"#f1f5f9",border:"none",borderRadius:"50%",width:34,height:34,fontSize:16,color:"#64748b"}}>✕</button>
+        </div>
+
+        {/* Loan summary */}
+        <div style={{background:"#f8fafc",borderRadius:12,padding:16,marginBottom:16,border:"1px solid #e2e8f0"}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+            <div>
+              <p style={{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:".5px",marginBottom:3}}>Loan Name</p>
+              <p style={{fontSize:14,fontWeight:600,color:"#0d1b2a"}}>{loan.loanName}</p>
+            </div>
+            <div>
+              <p style={{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:".5px",marginBottom:3}}>Amount</p>
+              <p style={{fontSize:20,fontWeight:800,color:"#1d4ed8"}}>GHC {loan.amount.toFixed(2)}</p>
+            </div>
+            <div>
+              <p style={{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:".5px",marginBottom:3}}>Due Date</p>
+              <p style={{fontSize:14,fontWeight:500,color:"#0d1b2a"}}>{fmtDate(loan.dueDate)}</p>
+            </div>
+            <div>
+              <p style={{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:".5px",marginBottom:3}}>Status</p>
+              <span style={{background:s.bg,color:s.c,padding:"3px 12px",borderRadius:20,fontSize:12,fontWeight:700}}>
+                {loan.status.charAt(0).toUpperCase()+loan.status.slice(1)}
+              </span>
+            </div>
+          </div>
+          {overdue && (
+            <div style={{marginTop:12,background:"#fee2e2",borderRadius:8,padding:"8px 12px",display:"flex",alignItems:"center",gap:8}}>
+              <span>⚠️</span>
+              <span style={{color:"#991b1b",fontSize:13,fontWeight:700}}>Overdue by {days} {days===1?"day":"days"}</span>
+            </div>
+          )}
+        </div>
+
+        {/* ── PAYMENT LINK — the main feature ── */}
+        <div style={{background:"#eff6ff",borderRadius:14,padding:18,marginBottom:14,border:"2px solid #bfdbfe"}}>
+          <p style={{fontSize:12,fontWeight:800,color:"#1e3a8a",textTransform:"uppercase",letterSpacing:".5px",marginBottom:10}}>
+            🔗 Payment Link for {loan.customerName.split(" ")[0]}
+          </p>
+
+          {/* Link */}
+          <div style={{background:"#fff",borderRadius:9,padding:"11px 14px",border:"1px solid #bfdbfe",marginBottom:12,fontSize:12,color:"#1d4ed8",wordBreak:"break-all",fontWeight:600,lineHeight:1.5}}>
+            {link}
+          </div>
+
+          {/* Copy link */}
+          <button onClick={copyLink}
+            style={{width:"100%",background:copied?"#10b981":"#1d4ed8",color:"#fff",border:"none",borderRadius:10,padding:"14px",fontSize:15,fontWeight:800,marginBottom:12,transition:"background .2s",boxShadow:"0 4px 14px rgba(29,78,216,.3)"}}>
+            {copied ? "✓ Link Copied! Now paste and send to customer" : "📋 Tap to Copy Payment Link"}
+          </button>
+
+          {/* WhatsApp message */}
+          <div style={{background:"#dcf8c6",borderRadius:9,padding:"11px 13px",border:"1px solid #a7f3a0",marginBottom:10}}>
+            <p style={{fontSize:12,fontWeight:700,color:"#065f46",marginBottom:6}}>📱 WhatsApp / SMS — ready to send:</p>
+            <p style={{fontSize:12,color:"#111",lineHeight:1.65,whiteSpace:"pre-line"}}>{waMsg}</p>
+          </div>
+          <button onClick={copyMsg}
+            style={{width:"100%",background:msgCopied?"#10b981":"#25d366",color:"#fff",border:"none",borderRadius:10,padding:"12px",fontSize:14,fontWeight:800,transition:"background .2s"}}>
+            {msgCopied ? "✓ Message Copied! Open WhatsApp and paste" : "📋 Copy WhatsApp Message"}
+          </button>
+        </div>
+
+        {/* Actions */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
+          <button onClick={onPreview} style={{background:"#eff6ff",color:"#1d4ed8",border:"none",borderRadius:10,padding:"12px 8px",fontSize:13,fontWeight:700}}>👁 Preview</button>
+          <button onClick={onEdit}   style={{background:"#f8fafc",color:"#334155",border:"1px solid #e2e8f0",borderRadius:10,padding:"12px 8px",fontSize:13,fontWeight:600}}>✏️ Edit</button>
+          <button onClick={onDelete} style={{background:"#fff0f0",color:"#dc2626",border:"none",borderRadius:10,padding:"12px 8px",fontSize:13,fontWeight:600}}>🗑 Delete</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════
+   LOAN FORM
+══════════════════════════════════════════ */
+function LoanForm({loan, onSave, onClose}){
+  const isNew=!loan.id;
+  const [f,setF]=useState({...loan});
+  const set=(k,v)=>setF(p=>({...p,[k]:v}));
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.55)",zIndex:4000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+      <div className="fade-in" style={{background:"#fff",borderRadius:18,padding:28,width:480,maxHeight:"92vh",overflowY:"auto",boxShadow:"0 24px 80px rgba(0,0,0,.3)"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:22}}>
+          <h3 style={{fontSize:18,fontWeight:800,color:"#0d1b2a"}}>{isNew?"Add New Customer":"Edit Loan"}</h3>
+          <button onClick={onClose} style={{background:"none",border:"none",fontSize:22,color:"#64748b"}}>✕</button>
+        </div>
+        {[
+          {l:"Customer Full Name",                    k:"customerName",t:"text"},
+          {l:"Customer Email (Paystack sends receipt here)", k:"email",t:"email"},
+          {l:"Customer Phone Number",                 k:"phone",       t:"tel"},
+          {l:"Loan Name / Type",                      k:"loanName",    t:"text"},
+          {l:"Repayment Amount (GHC)",                k:"amount",      t:"number"},
+          {l:"Due Date",                              k:"dueDate",     t:"date"},
+        ].map(({l,k,t})=>(
+          <div key={k} style={{marginBottom:14}}>
+            <label style={{display:"block",fontSize:13,fontWeight:700,color:"#374151",marginBottom:5}}>{l}</label>
+            <input type={t} value={f[k]||""} onChange={e=>set(k,t==="number"?parseFloat(e.target.value)||0:e.target.value)}
+              style={{width:"100%",border:"1.5px solid #e2e8f0",borderRadius:9,padding:"10px 13px",fontSize:14,outline:"none"}}/>
+          </div>
+        ))}
+        <div style={{marginBottom:22}}>
+          <label style={{display:"block",fontSize:13,fontWeight:700,color:"#374151",marginBottom:5}}>Status</label>
+          <select value={f.status||"pending"} onChange={e=>set("status",e.target.value)}
+            style={{width:"100%",border:"1.5px solid #e2e8f0",borderRadius:9,padding:"10px 13px",fontSize:14,outline:"none",background:"#fff"}}>
+            <option value="pending">Pending</option>
+            <option value="overdue">Overdue</option>
+            <option value="paid">Paid</option>
+          </select>
+        </div>
+        <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+          <button onClick={onClose} style={{background:"#f1f5f9",color:"#334155",border:"none",borderRadius:9,padding:"11px 22px",fontSize:14,fontWeight:600}}>Cancel</button>
+          <button onClick={()=>onSave(f)} style={{background:"#1d4ed8",color:"#fff",border:"none",borderRadius:9,padding:"11px 26px",fontSize:14,fontWeight:800}}>
+            {isNew?"Add Customer":"Save Changes"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════
+   MAIN APP
+══════════════════════════════════════════ */
+function App(){
+  const [loans,    setLoansRaw] = useState(load);
+  const [selected, setSelected] = useState(null);
+  const [preview,  setPreview]  = useState(null);
+  const [editing,  setEditing]  = useState(null);
+  const [adding,   setAdding]   = useState(false);
+  const [search,   setSearch]   = useState("");
+  const [filter,   setFilter]   = useState("all");
+  const [toast,    setToast]    = useState(null);
+
+  /* Check URL for ?pay=LNXXX — customer clicked their link */
+  const [payLoan, setPayLoan] = useState(null);
+  useEffect(()=>{
+    const params = new URLSearchParams(window.location.search);
+    const payId  = params.get("pay");
+    if(payId){
+      const found = load().find(l=>l.id===payId);
+      if(found) setPayLoan(found);
+    }
+  },[]);
+
+  /* If customer opened their link — show ONLY the payment page */
+  if(payLoan) return (
+    <div style={{minHeight:"100vh",background:"#1a1a2e",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+      <div style={{width:375,height:760,borderRadius:44,border:"8px solid #111",overflow:"hidden",boxShadow:"0 40px 100px rgba(0,0,0,.8)"}}>
+        <PaymentPage loan={payLoan}/>
+      </div>
+    </div>
+  );
+
+  function setLoans(fn){
+    setLoansRaw(prev=>{
+      const next=typeof fn==="function"?fn(prev):fn;
+      save(next);
+      return next;
+    });
+  }
+
+  function showToast(msg,color){
+    setToast({msg,color:color||"#10b981"});
+    setTimeout(()=>setToast(null),3000);
+  }
+
+  function saveEdit(u){
+    setLoans(ls=>ls.map(l=>l.id===u.id?u:l));
+    setEditing(null);setSelected(null);
+    showToast("✓ Loan updated!");
+  }
+
+  function saveAdd(n){
+    setLoans(ls=>{const id=makeId(ls);return[...ls,{...n,id,currency:"GHC"}];});
+    setAdding(false);
+    showToast("✓ Customer added!");
+  }
+
+  function del(id){
+    if(!window.confirm("Delete this loan? This cannot be undone."))return;
+    setLoans(ls=>ls.filter(l=>l.id!==id));
+    setSelected(null);
+    showToast("Loan deleted.","#ef4444");
+  }
+
+  const sc={
+    pending:{c:"#92400e",bg:"#fef3c7",dot:"#f59e0b"},
+    overdue:{c:"#991b1b",bg:"#fee2e2",dot:"#ef4444"},
+    paid:   {c:"#065f46",bg:"#d1fae5",dot:"#10b981"},
+  };
+  const counts={
+    all:loans.length,
+    pending:loans.filter(l=>l.status==="pending").length,
+    overdue:loans.filter(l=>l.status==="overdue").length,
+    paid:   loans.filter(l=>l.status==="paid").length,
+  };
+  const totalOut  = loans.filter(l=>l.status!=="paid").reduce((a,l)=>a+l.amount,0);
+  const totalPaid = loans.filter(l=>l.status==="paid").reduce((a,l)=>a+l.amount,0);
+
+  const filtered = loans.filter(l=>{
+    const q=search.toLowerCase();
+    const ms=l.customerName.toLowerCase().includes(q)||l.id.includes(q)||l.phone.includes(q)||l.email.toLowerCase().includes(q);
+    const mf=filter==="all"||l.status===filter;
+    return ms&&mf;
+  });
+
+  return (
+    <div style={{minHeight:"100vh",background:"#f0f4f8"}}>
+
+      {/* Overlays */}
+      {preview  && <PreviewModal loan={preview} onClose={()=>setPreview(null)}/>}
+      {editing  && <LoanForm loan={editing} onSave={saveEdit} onClose={()=>setEditing(null)}/>}
+      {adding   && <LoanForm loan={{customerName:"",email:"",phone:"",loanName:"Tap Loan",amount:0,dueDate:"",status:"pending"}} onSave={saveAdd} onClose={()=>setAdding(false)}/>}
+      {selected && !editing && (
+        <CustomerPanel
+          loan={selected}
+          onPreview={()=>{setPreview(selected);setSelected(null);}}
+          onEdit={()=>setEditing({...selected})}
+          onDelete={()=>del(selected.id)}
+          onClose={()=>setSelected(null)}
+        />
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <div style={{position:"fixed",bottom:28,left:"50%",transform:"translateX(-50%)",background:toast.color,color:"#fff",padding:"12px 28px",borderRadius:30,fontWeight:700,fontSize:14,boxShadow:"0 6px 20px rgba(0,0,0,.3)",zIndex:9999,whiteSpace:"nowrap"}}>
+          {toast.msg}
+        </div>
+      )}
+
+      {/* Top nav */}
+      <div style={{background:"#0d1b2a",padding:"16px 24px",display:"flex",alignItems:"center",justifyContent:"space-between",boxShadow:"0 2px 12px rgba(0,0,0,.3)"}}>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <div style={{width:40,height:40,background:"linear-gradient(135deg,#2196f3,#1565c0)",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>💳</div>
+          <div>
+            <div style={{color:"#fff",fontWeight:800,fontSize:18}}>TarajaFin</div>
+            <div style={{color:"#4a90d9",fontSize:11}}>Loan Payment Manager</div>
+          </div>
+        </div>
+        <button onClick={()=>setAdding(true)}
+          style={{background:"linear-gradient(90deg,#1d4ed8,#2563eb)",color:"#fff",border:"none",borderRadius:10,padding:"11px 22px",fontSize:14,fontWeight:800,boxShadow:"0 4px 14px rgba(29,78,216,.5)"}}>
+          + Add Customer
+        </button>
+      </div>
+
+      <div style={{padding:"24px"}}>
+
+        {/* Stats */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:22}}>
+          {[
+            {label:"Outstanding",val:"GHC "+totalOut.toFixed(2), color:"#6366f1",icon:"💰"},
+            {label:"Collected",  val:"GHC "+totalPaid.toFixed(2),color:"#10b981",icon:"✅"},
+            {label:"Overdue",    val:counts.overdue,              color:"#ef4444",icon:"⚠️"},
+            {label:"Customers",  val:loans.length,                color:"#3b82f6",icon:"👥"},
+          ].map(s=>(
+            <div key={s.label} style={{background:"#fff",borderRadius:14,padding:"18px 20px",boxShadow:"0 2px 8px rgba(0,0,0,.07)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div>
+                <p style={{fontSize:12,fontWeight:600,color:"#64748b",textTransform:"uppercase",letterSpacing:".5px",marginBottom:5}}>{s.label}</p>
+                <p style={{fontSize:22,fontWeight:800,color:s.color}}>{s.val}</p>
+              </div>
+              <span style={{fontSize:28}}>{s.icon}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Search + filter */}
+        <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:14,flexWrap:"wrap"}}>
+          <div style={{position:"relative",flex:1,minWidth:200}}>
+            <span style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",color:"#94a3b8",fontSize:16}}>🔍</span>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by name, phone, or ID…"
+              style={{width:"100%",border:"1.5px solid #e2e8f0",borderRadius:10,padding:"11px 14px 11px 38px",fontSize:14,outline:"none",background:"#fff"}}/>
+          </div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            {["all","pending","overdue","paid"].map(f=>(
+              <button key={f} onClick={()=>setFilter(f)}
+                style={{background:filter===f?"#0d1b2a":"#fff",color:filter===f?"#fff":"#64748b",border:"1.5px solid "+(filter===f?"#0d1b2a":"#e2e8f0"),borderRadius:8,padding:"9px 16px",fontSize:13,fontWeight:filter===f?700:500}}>
+                {f.charAt(0).toUpperCase()+f.slice(1)} ({counts[f]})
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Hint */}
+        <div style={{background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:10,padding:"10px 16px",marginBottom:14,display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:18}}>👆</span>
+          <span style={{fontSize:13,color:"#1e40af",fontWeight:600}}>Tap any customer to get their payment link and send it to them</span>
+        </div>
+
+        {/* Customer table */}
+        <div style={{background:"#fff",borderRadius:14,boxShadow:"0 2px 8px rgba(0,0,0,.07)",overflow:"hidden"}}>
+          <table style={{width:"100%",borderCollapse:"collapse"}}>
+            <thead>
+              <tr style={{background:"#f8fafc",borderBottom:"2px solid #e2e8f0"}}>
+                {["Customer","Loan","Amount","Due Date","Status","Overdue"].map(h=>(
+                  <th key={h} style={{textAlign:"left",padding:"13px 16px",fontSize:11,fontWeight:800,color:"#64748b",textTransform:"uppercase",letterSpacing:".7px"}}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((loan,i)=>{
+                const days=daysLate(loan.dueDate);
+                const s=sc[loan.status]||sc.pending;
+                return (
+                  <tr key={loan.id} className="row-hover" onClick={()=>setSelected(loan)}
+                    style={{borderBottom:"1px solid #f1f5f9",cursor:"pointer",background:i%2===0?"#fff":"#fafcff"}}>
+                    <td style={{padding:"14px 16px"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:10}}>
+                        <div style={{width:38,height:38,borderRadius:"50%",background:"linear-gradient(135deg,#2196f3,#1565c0)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:800,fontSize:15,flexShrink:0}}>
+                          {initial(loan.customerName)}
+                        </div>
+                        <div>
+                          <div style={{fontWeight:700,color:"#0d1b2a",fontSize:14}}>{loan.customerName}</div>
+                          <div style={{fontSize:12,color:"#94a3b8"}}>{loan.phone}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{padding:"14px 16px"}}>
+                      <div style={{fontSize:14,color:"#334155",fontWeight:500}}>{loan.loanName}</div>
+                      <div style={{fontSize:11,color:"#bbb"}}>{loan.id}</div>
+                    </td>
+                    <td style={{padding:"14px 16px"}}>
+                      <span style={{fontSize:16,fontWeight:800,color:"#0d1b2a"}}>GHC {loan.amount.toFixed(2)}</span>
+                    </td>
+                    <td style={{padding:"14px 16px",fontSize:13,color:"#334155",fontWeight:500}}>{fmtDate(loan.dueDate)}</td>
+                    <td style={{padding:"14px 16px"}}>
+                      <span style={{background:s.bg,color:s.c,padding:"4px 12px",borderRadius:20,fontSize:12,fontWeight:700}}>
+                        {loan.status.charAt(0).toUpperCase()+loan.status.slice(1)}
+                      </span>
+                    </td>
+                    <td style={{padding:"14px 16px"}}>
+                      {loan.status!=="paid"&&days>0
+                        ?<span style={{background:"#fee2e2",color:"#dc2626",padding:"4px 10px",borderRadius:6,fontSize:12,fontWeight:700}}>{days}d late</span>
+                        :<span style={{color:"#94a3b8",fontSize:13}}>—</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {filtered.length===0 && (
+            <div style={{padding:48,textAlign:"center",color:"#94a3b8"}}>
+              <div style={{fontSize:40,marginBottom:12}}>👥</div>
+              <p style={{fontSize:15,fontWeight:600,marginBottom:6}}>No customers found</p>
+              <p style={{fontSize:13}}>Try searching or add a new customer</p>
+            </div>
+          )}
+        </div>
+        <p style={{textAlign:"center",fontSize:12,color:"#94a3b8",marginTop:14}}>
+          {loans.length} customer{loans.length!==1?"s":""} · Data saved to this device automatically
+        </p>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+
+</body>
+</html>
